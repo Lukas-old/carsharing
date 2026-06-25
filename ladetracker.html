@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Ladestand-Tracker</title>
+<style>
+  :root{
+    --bg:#0f1115;
+    --panel:#161a21;
+    --panel-border:#262b35;
+    --text:#e7eaf0;
+    --text-dim:#8a93a3;
+    --accent:#33c2a3;
+    --accent-dim:#1f4f46;
+    --row-alt:#13161c;
+    --input-bg:#1c2129;
+    --input-border:#323a47;
+    --danger:#e0626b;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    padding:24px 16px 60px;
+  }
+  .wrap{max-width:1080px;margin:0 auto;}
+  h1{
+    font-size:20px;
+    font-weight:600;
+    letter-spacing:.2px;
+    margin:0 0 4px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  h1 .dot{
+    width:8px;height:8px;border-radius:50%;
+    background:var(--accent);
+    box-shadow:0 0 8px var(--accent);
+    flex-shrink:0;
+  }
+  .sub{color:var(--text-dim);font-size:13px;margin:0 0 20px;}
+
+  .toolbar{
+    display:flex;justify-content:flex-end;gap:10px;margin-bottom:14px;
+  }
+  button{
+    font-family:inherit;
+    font-size:13px;
+    border-radius:7px;
+    border:1px solid var(--input-border);
+    background:var(--input-bg);
+    color:var(--text);
+    padding:8px 14px;
+    cursor:pointer;
+    transition:border-color .15s, color .15s;
+  }
+  button:hover{border-color:var(--accent);color:var(--accent);}
+  button.primary{
+    background:var(--accent-dim);
+    border-color:var(--accent);
+    color:#cdf5ec;
+  }
+  button.primary:hover{background:var(--accent);color:#062420;}
+  button.danger:hover{border-color:var(--danger);color:var(--danger);}
+
+  .table-scroll{
+    overflow-x:auto;
+    border:1px solid var(--panel-border);
+    border-radius:10px;
+    background:var(--panel);
+  }
+  table{
+    border-collapse:collapse;
+    width:100%;
+    min-width:760px;
+  }
+  thead th{
+    text-align:left;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--text-dim);
+    font-weight:600;
+    padding:12px 10px;
+    border-bottom:1px solid var(--panel-border);
+    white-space:nowrap;
+  }
+  thead th .unit{
+    color:#586073;
+    font-weight:400;
+    text-transform:none;
+    letter-spacing:0;
+  }
+  tbody td{
+    padding:6px 8px;
+    border-bottom:1px solid var(--panel-border);
+    white-space:nowrap;
+  }
+  tbody tr:nth-child(even){background:var(--row-alt);}
+  tbody tr:hover{background:#1a2029;}
+  tbody tr.is-new{background:#142224;}
+
+  input{
+    font-family:inherit;
+    font-size:13px;
+    background:var(--input-bg);
+    color:var(--text);
+    border:1px solid var(--input-border);
+    border-radius:6px;
+    padding:7px 8px;
+    width:100%;
+    min-width:78px;
+  }
+  input:focus{
+    outline:none;
+    border-color:var(--accent);
+    box-shadow:0 0 0 2px var(--accent-dim);
+  }
+  input[type="date"], input[type="time"]{min-width:118px;}
+  input.calc{
+    background:#11161b;
+    border-color:#21262f;
+    color:var(--accent);
+    font-weight:600;
+    cursor:default;
+  }
+  td.del{width:34px;text-align:center;}
+  .del-btn{
+    background:none;border:none;color:var(--text-dim);
+    font-size:16px;cursor:pointer;padding:4px 6px;border-radius:6px;
+    line-height:1;
+  }
+  .del-btn:hover{color:var(--danger);background:#241a1c;}
+
+  .footer-note{
+    margin-top:14px;
+    font-size:12px;
+    color:var(--text-dim);
+    line-height:1.5;
+  }
+  .footer-note code{
+    background:#1c2129;
+    padding:1px 5px;
+    border-radius:4px;
+    color:#a9b2c2;
+  }
+  .empty{
+    padding:40px 20px;
+    text-align:center;
+    color:var(--text-dim);
+    font-size:13px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span class="dot"></span>Ladestand-Tracker</h1>
+  <p class="sub">Erfassung von Ladestand, Reichweite und hochgerechneter 100%-Reichweite</p>
+
+  <div class="toolbar">
+    <button class="danger" id="btn-clear">Alle Einträge löschen</button>
+    <button class="primary" id="btn-add">+ Neue Zeile</button>
+  </div>
+
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:118px;">Datum</th>
+          <th style="width:90px;">Uhrzeit</th>
+          <th>Außentemp. <span class="unit">°C</span></th>
+          <th>Ladestand <span class="unit">%</span></th>
+          <th>Reichweite <span class="unit">km</span></th>
+          <th>Abweichung <span class="unit">km @ 100%</span></th>
+          <th class="del"></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="empty" id="empty-msg" style="display:none;">Keine Einträge vorhanden. Mit „+ Neue Zeile&quot; starten.</div>
+  </div>
+
+  <p class="footer-note">
+    <strong>Abweichung</strong> wird automatisch berechnet: <code>Reichweite ÷ Ladestand × 100</code> —
+    also die rechnerische Reichweite, die sich bei 100&nbsp;% Ladestand ergäbe. Datum/Uhrzeit werden beim Anlegen
+    einer Zeile mit dem aktuellen Wert vorbelegt, lassen sich aber frei ändern. Alle Eingaben werden automatisch
+    im Browser gespeichert (localStorage) und bleiben nach einem Neuladen der Seite erhalten.
+  </p>
+</div>
+
+<script>
+(function(){
+  const STORAGE_KEY = 'ladetracker_rows_v1';
+  const tbody = document.getElementById('tbody');
+  const emptyMsg = document.getElementById('empty-msg');
+
+  function pad(n){ return String(n).padStart(2,'0'); }
+
+  function todayStr(){
+    const d = new Date();
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+  }
+  function nowTimeStr(){
+    const d = new Date();
+    return pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  function loadRows(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return [];
+      const parsed = JSON.parse(raw);
+      if(Array.isArray(parsed)) return parsed;
+      return [];
+    }catch(e){
+      console.error('Ladetracker: Fehler beim Laden', e);
+      return [];
+    }
+  }
+
+  function saveRows(rows){
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
+    }catch(e){
+      console.error('Ladetracker: Fehler beim Speichern', e);
+    }
+  }
+
+  let rows = loadRows();
+  let nextId = rows.reduce((max,r)=>Math.max(max, r.id||0), 0) + 1;
+
+  function calcAbweichung(ladestand, reichweite){
+    const l = parseFloat(String(ladestand).replace(',', '.'));
+    const r = parseFloat(String(reichweite).replace(',', '.'));
+    if(!l || l <= 0 || isNaN(r)) return '';
+    return (r / l * 100).toFixed(2).replace('.', ',');
+  }
+
+  function render(){
+    tbody.innerHTML = '';
+    emptyMsg.style.display = rows.length ? 'none' : 'block';
+
+    rows.forEach((row) => {
+      const tr = document.createElement('tr');
+      if(row._isNew){ tr.classList.add('is-new'); delete row._isNew; }
+
+      // Datum
+      const tdDatum = document.createElement('td');
+      const inDatum = document.createElement('input');
+      inDatum.type = 'date';
+      inDatum.value = row.datum || todayStr();
+      inDatum.addEventListener('change', () => { row.datum = inDatum.value; saveRows(rows); });
+      tdDatum.appendChild(inDatum);
+      tr.appendChild(tdDatum);
+
+      // Uhrzeit
+      const tdZeit = document.createElement('td');
+      const inZeit = document.createElement('input');
+      inZeit.type = 'time';
+      inZeit.value = row.uhrzeit || nowTimeStr();
+      inZeit.addEventListener('change', () => { row.uhrzeit = inZeit.value; saveRows(rows); });
+      tdZeit.appendChild(inZeit);
+      tr.appendChild(tdZeit);
+
+      // Außentemperatur
+      const tdTemp = document.createElement('td');
+      const inTemp = document.createElement('input');
+      inTemp.type = 'text';
+      inTemp.inputMode = 'decimal';
+      inTemp.placeholder = 'z. B. 23';
+      inTemp.value = row.temp || '';
+      inTemp.addEventListener('input', () => { row.temp = inTemp.value; saveRows(rows); });
+      tdTemp.appendChild(inTemp);
+      tr.appendChild(tdTemp);
+
+      // Ladestand
+      const tdLade = document.createElement('td');
+      const inLade = document.createElement('input');
+      inLade.type = 'text';
+      inLade.inputMode = 'decimal';
+      inLade.placeholder = 'z. B. 65';
+      inLade.value = row.ladestand || '';
+      inLade.addEventListener('input', () => {
+        row.ladestand = inLade.value;
+        inAbw.value = calcAbweichung(row.ladestand, row.reichweite);
+        saveRows(rows);
+      });
+      tdLade.appendChild(inLade);
+      tr.appendChild(tdLade);
+
+      // Reichweite
+      const tdReich = document.createElement('td');
+      const inReich = document.createElement('input');
+      inReich.type = 'text';
+      inReich.inputMode = 'decimal';
+      inReich.placeholder = 'z. B. 335';
+      inReich.value = row.reichweite || '';
+      inReich.addEventListener('input', () => {
+        row.reichweite = inReich.value;
+        inAbw.value = calcAbweichung(row.ladestand, row.reichweite);
+        saveRows(rows);
+      });
+      tdReich.appendChild(inReich);
+      tr.appendChild(tdReich);
+
+      // Abweichung (berechnet, read-only)
+      const tdAbw = document.createElement('td');
+      const inAbw = document.createElement('input');
+      inAbw.type = 'text';
+      inAbw.classList.add('calc');
+      inAbw.readOnly = true;
+      inAbw.tabIndex = -1;
+      inAbw.value = calcAbweichung(row.ladestand, row.reichweite);
+      tdAbw.appendChild(inAbw);
+      tr.appendChild(tdAbw);
+
+      // Löschen
+      const tdDel = document.createElement('td');
+      tdDel.classList.add('del');
+      const delBtn = document.createElement('button');
+      delBtn.className = 'del-btn';
+      delBtn.title = 'Zeile löschen';
+      delBtn.textContent = '✕';
+      delBtn.addEventListener('click', () => {
+        rows = rows.filter(r => r.id !== row.id);
+        saveRows(rows);
+        render();
+      });
+      tdDel.appendChild(delBtn);
+      tr.appendChild(tdDel);
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  document.getElementById('btn-add').addEventListener('click', () => {
+    rows.push({
+      id: nextId++,
+      datum: todayStr(),
+      uhrzeit: nowTimeStr(),
+      ladestand: '',
+      reichweite: '',
+      temp: '',
+      _isNew: true
+    });
+    saveRows(rows);
+    render();
+  });
+
+  document.getElementById('btn-clear').addEventListener('click', () => {
+    if(rows.length === 0) return;
+    if(confirm('Wirklich alle Einträge unwiderruflich löschen?')){
+      rows = [];
+      saveRows(rows);
+      render();
+    }
+  });
+
+  // Beispiel-Zeilen beim allerersten Start anlegen, falls noch nichts gespeichert ist
+  if(rows.length === 0 && localStorage.getItem(STORAGE_KEY) === null){
+    rows = [
+      { id: nextId++, datum: todayStr(), uhrzeit: '14:10', ladestand: '65', reichweite: '335', temp: '23' },
+      { id: nextId++, datum: todayStr(), uhrzeit: '15:56', ladestand: '65', reichweite: '293', temp: '36,5' }
+    ];
+    saveRows(rows);
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
