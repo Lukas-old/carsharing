@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Ladestand-Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1115;
+    --panel:#161a21;
+    --panel-border:#262b35;
+    --text:#e7eaf0;
+    --text-dim:#8a93a3;
+    --accent:#33c2a3;
+    --accent-dim:#1f4f46;
+    --row-alt:#13161c;
+    --input-bg:#1c2129;
+    --input-border:#323a47;
+    --danger:#e0626b;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    padding:24px 16px 60px;
+  }
+  .wrap{max-width:1080px;margin:0 auto;}
+  h1{
+    font-size:20px;
+    font-weight:600;
+    letter-spacing:.2px;
+    margin:0 0 4px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  h1 .dot{
+    width:8px;height:8px;border-radius:50%;
+    background:var(--accent);
+    box-shadow:0 0 8px var(--accent);
+    flex-shrink:0;
+  }
+  .sub{color:var(--text-dim);font-size:13px;margin:0 0 20px;}
+
+  .toolbar{
+    display:flex;flex-wrap:wrap;justify-content:flex-end;gap:10px;margin-bottom:14px;
+  }
+  button{
+    font-family:inherit;
+    font-size:13px;
+    border-radius:7px;
+    border:1px solid var(--input-border);
+    background:var(--input-bg);
+    color:var(--text);
+    padding:8px 14px;
+    cursor:pointer;
+    transition:border-color .15s, color .15s;
+  }
+  button:hover{border-color:var(--accent);color:var(--accent);}
+  button.primary{
+    background:var(--accent-dim);
+    border-color:var(--accent);
+    color:#cdf5ec;
+  }
+  button.primary:hover{background:var(--accent);color:#062420;}
+  button.danger:hover{border-color:var(--danger);color:var(--danger);}
+
+  .toolbar-group{position:relative;}
+  .menu{
+    position:absolute;
+    top:calc(100% + 6px);
+    right:0;
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    border-radius:8px;
+    min-width:160px;
+    box-shadow:0 8px 24px rgba(0,0,0,.4);
+    z-index:20;
+    overflow:hidden;
+    display:none;
+  }
+  .menu.open{display:block;}
+  .menu button{
+    display:block;
+    width:100%;
+    text-align:left;
+    border:none;
+    border-radius:0;
+    background:none;
+    padding:10px 14px;
+  }
+  .menu button:hover{background:#1f242d;color:var(--accent);border-color:transparent;}
+  .menu .divider{height:1px;background:var(--panel-border);margin:0;}
+  #file-import{display:none;}
+
+  .table-scroll{
+    overflow-x:auto;
+    border:1px solid var(--panel-border);
+    border-radius:10px;
+    background:var(--panel);
+  }
+  table{
+    border-collapse:collapse;
+    width:100%;
+    min-width:760px;
+  }
+  thead th{
+    text-align:left;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    color:var(--text-dim);
+    font-weight:600;
+    padding:12px 10px;
+    border-bottom:1px solid var(--panel-border);
+    white-space:nowrap;
+  }
+  thead th .unit{
+    color:#586073;
+    font-weight:400;
+    text-transform:none;
+    letter-spacing:0;
+  }
+  tbody td{
+    padding:6px 8px;
+    border-bottom:1px solid var(--panel-border);
+    white-space:nowrap;
+  }
+  tbody tr:nth-child(even){background:var(--row-alt);}
+  tbody tr:hover{background:#1a2029;}
+  tbody tr.is-new{background:#142224;}
+
+  input{
+    font-family:inherit;
+    font-size:13px;
+    background:var(--input-bg);
+    color:var(--text);
+    border:1px solid var(--input-border);
+    border-radius:6px;
+    padding:7px 8px;
+    width:100%;
+    min-width:78px;
+  }
+  input:focus{
+    outline:none;
+    border-color:var(--accent);
+    box-shadow:0 0 0 2px var(--accent-dim);
+  }
+  input[type="date"], input[type="time"]{min-width:118px;}
+  input.calc{
+    background:#11161b;
+    border-color:#21262f;
+    color:var(--accent);
+    font-weight:600;
+    cursor:default;
+  }
+  td.del{width:34px;text-align:center;}
+  .del-btn{
+    background:none;border:none;color:var(--text-dim);
+    font-size:16px;cursor:pointer;padding:4px 6px;border-radius:6px;
+    line-height:1;
+  }
+  .del-btn:hover{color:var(--danger);background:#241a1c;}
+
+  .footer-note{
+    margin-top:14px;
+    font-size:12px;
+    color:var(--text-dim);
+    line-height:1.5;
+  }
+  .footer-note code{
+    background:#1c2129;
+    padding:1px 5px;
+    border-radius:4px;
+    color:#a9b2c2;
+  }
+  .empty{
+    padding:40px 20px;
+    text-align:center;
+    color:var(--text-dim);
+    font-size:13px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><span class="dot"></span>Ladestand-Tracker</h1>
+  <p class="sub">Erfassung von Ladestand, Reichweite und hochgerechneter 100%-Reichweite</p>
+
+  <div class="toolbar">
+    <div class="toolbar-group">
+      <button id="btn-import-toggle">Import ▾</button>
+      <div class="menu" id="menu-import">
+        <button id="btn-import-csv">Aus CSV …</button>
+        <button id="btn-import-xlsx">Aus Excel (.xlsx) …</button>
+      </div>
+    </div>
+    <div class="toolbar-group">
+      <button id="btn-export-toggle">Export ▾</button>
+      <div class="menu" id="menu-export">
+        <button id="btn-export-csv">Als CSV</button>
+        <button id="btn-export-xlsx">Als Excel (.xlsx)</button>
+      </div>
+    </div>
+    <input type="file" id="file-import" accept=".csv,.xlsx,.xls">
+    <button class="danger" id="btn-clear">Alle Einträge löschen</button>
+    <button class="primary" id="btn-add">+ Neue Zeile</button>
+  </div>
+
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:118px;">Datum</th>
+          <th style="width:90px;">Uhrzeit</th>
+          <th>Außentemp. <span class="unit">°C</span></th>
+          <th>Ladestand <span class="unit">%</span></th>
+          <th>Reichweite <span class="unit">km</span></th>
+          <th>Abweichung <span class="unit">km @ 100%</span></th>
+          <th class="del"></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="empty" id="empty-msg" style="display:none;">Keine Einträge vorhanden. Mit „+ Neue Zeile&quot; starten.</div>
+  </div>
+
+  <p class="footer-note">
+    <strong>Abweichung</strong> wird automatisch berechnet: <code>Reichweite ÷ Ladestand × 100</code> —
+    also die rechnerische Reichweite, die sich bei 100&nbsp;% Ladestand ergäbe. Datum/Uhrzeit werden beim Anlegen
+    einer Zeile mit dem aktuellen Wert vorbelegt, lassen sich aber frei ändern. Alle Eingaben werden automatisch
+    im Browser gespeichert (localStorage) und bleiben nach einem Neuladen der Seite erhalten.
+    Über <strong>Export</strong> lässt sich die Tabelle als CSV oder Excel-Datei (.xlsx) herunterladen, über
+    <strong>Import</strong> lässt sich eine zuvor exportierte oder passend formatierte CSV-/Excel-Datei wieder einlesen
+    (mit Auswahl, ob die Zeilen ergänzt oder die bestehende Tabelle ersetzt werden soll).
+  </p>
+</div>
+
+<script>
+(function(){
+  const STORAGE_KEY = 'ladetracker_rows_v1';
+  const tbody = document.getElementById('tbody');
+  const emptyMsg = document.getElementById('empty-msg');
+
+  function pad(n){ return String(n).padStart(2,'0'); }
+
+  function todayStr(){
+    const d = new Date();
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+  }
+  function nowTimeStr(){
+    const d = new Date();
+    return pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  function loadRows(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return [];
+      const parsed = JSON.parse(raw);
+      if(Array.isArray(parsed)) return parsed;
+      return [];
+    }catch(e){
+      console.error('Ladetracker: Fehler beim Laden', e);
+      return [];
+    }
+  }
+
+  function saveRows(rows){
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
+    }catch(e){
+      console.error('Ladetracker: Fehler beim Speichern', e);
+    }
+  }
+
+  let rows = loadRows();
+  let nextId = rows.reduce((max,r)=>Math.max(max, r.id||0), 0) + 1;
+
+  function calcAbweichung(ladestand, reichweite){
+    const l = parseFloat(String(ladestand).replace(',', '.'));
+    const r = parseFloat(String(reichweite).replace(',', '.'));
+    if(!l || l <= 0 || isNaN(r)) return '';
+    return (r / l * 100).toFixed(2).replace('.', ',');
+  }
+
+  function render(){
+    tbody.innerHTML = '';
+    emptyMsg.style.display = rows.length ? 'none' : 'block';
+
+    rows.forEach((row) => {
+      const tr = document.createElement('tr');
+      if(row._isNew){ tr.classList.add('is-new'); delete row._isNew; }
+
+      // Datum
+      const tdDatum = document.createElement('td');
+      const inDatum = document.createElement('input');
+      inDatum.type = 'date';
+      inDatum.value = row.datum || todayStr();
+      inDatum.addEventListener('change', () => { row.datum = inDatum.value; saveRows(rows); });
+      tdDatum.appendChild(inDatum);
+      tr.appendChild(tdDatum);
+
+      // Uhrzeit
+      const tdZeit = document.createElement('td');
+      const inZeit = document.createElement('input');
+      inZeit.type = 'time';
+      inZeit.value = row.uhrzeit || nowTimeStr();
+      inZeit.addEventListener('change', () => { row.uhrzeit = inZeit.value; saveRows(rows); });
+      tdZeit.appendChild(inZeit);
+      tr.appendChild(tdZeit);
+
+      // Außentemperatur
+      const tdTemp = document.createElement('td');
+      const inTemp = document.createElement('input');
+      inTemp.type = 'text';
+      inTemp.inputMode = 'decimal';
+      inTemp.placeholder = 'z. B. 23';
+      inTemp.value = row.temp || '';
+      inTemp.addEventListener('input', () => { row.temp = inTemp.value; saveRows(rows); });
+      tdTemp.appendChild(inTemp);
+      tr.appendChild(tdTemp);
+
+      // Ladestand
+      const tdLade = document.createElement('td');
+      const inLade = document.createElement('input');
+      inLade.type = 'text';
+      inLade.inputMode = 'decimal';
+      inLade.placeholder = 'z. B. 65';
+      inLade.value = row.ladestand || '';
+      inLade.addEventListener('input', () => {
+        row.ladestand = inLade.value;
+        inAbw.value = calcAbweichung(row.ladestand, row.reichweite);
+        saveRows(rows);
+      });
+      tdLade.appendChild(inLade);
+      tr.appendChild(tdLade);
+
+      // Reichweite
+      const tdReich = document.createElement('td');
+      const inReich = document.createElement('input');
+      inReich.type = 'text';
+      inReich.inputMode = 'decimal';
+      inReich.placeholder = 'z. B. 335';
+      inReich.value = row.reichweite || '';
+      inReich.addEventListener('input', () => {
+        row.reichweite = inReich.value;
+        inAbw.value = calcAbweichung(row.ladestand, row.reichweite);
+        saveRows(rows);
+      });
+      tdReich.appendChild(inReich);
+      tr.appendChild(tdReich);
+
+      // Abweichung (berechnet, read-only)
+      const tdAbw = document.createElement('td');
+      const inAbw = document.createElement('input');
+      inAbw.type = 'text';
+      inAbw.classList.add('calc');
+      inAbw.readOnly = true;
+      inAbw.tabIndex = -1;
+      inAbw.value = calcAbweichung(row.ladestand, row.reichweite);
+      tdAbw.appendChild(inAbw);
+      tr.appendChild(tdAbw);
+
+      // Löschen
+      const tdDel = document.createElement('td');
+      tdDel.classList.add('del');
+      const delBtn = document.createElement('button');
+      delBtn.className = 'del-btn';
+      delBtn.title = 'Zeile löschen';
+      delBtn.textContent = '✕';
+      delBtn.addEventListener('click', () => {
+        rows = rows.filter(r => r.id !== row.id);
+        saveRows(rows);
+        render();
+      });
+      tdDel.appendChild(delBtn);
+      tr.appendChild(tdDel);
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  document.getElementById('btn-add').addEventListener('click', () => {
+    rows.push({
+      id: nextId++,
+      datum: todayStr(),
+      uhrzeit: nowTimeStr(),
+      ladestand: '',
+      reichweite: '',
+      temp: '',
+      _isNew: true
+    });
+    saveRows(rows);
+    render();
+  });
+
+  document.getElementById('btn-clear').addEventListener('click', () => {
+    if(rows.length === 0) return;
+    if(confirm('Wirklich alle Einträge unwiderruflich löschen?')){
+      rows = [];
+      saveRows(rows);
+      render();
+    }
+  });
+
+  // ---------- Dropdown-Menüs ----------
+  function setupMenu(toggleId, menuId){
+    const toggle = document.getElementById(toggleId);
+    const menu = document.getElementById(menuId);
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = menu.classList.contains('open');
+      document.querySelectorAll('.menu.open').forEach(m => m.classList.remove('open'));
+      if(!isOpen) menu.classList.add('open');
+    });
+  }
+  setupMenu('btn-import-toggle', 'menu-import');
+  setupMenu('btn-export-toggle', 'menu-export');
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.menu.open').forEach(m => m.classList.remove('open'));
+  });
+
+  // ---------- Export ----------
+  const HEADERS = ['Datum', 'Uhrzeit', 'Außentemperatur', 'Ladestand', 'Reichweite', 'Abweichung'];
+
+  function rowsToAOA(){
+    const aoa = [HEADERS];
+    rows.forEach(row => {
+      aoa.push([
+        row.datum || '',
+        row.uhrzeit || '',
+        row.temp || '',
+        row.ladestand || '',
+        row.reichweite || '',
+        calcAbweichung(row.ladestand, row.reichweite)
+      ]);
+    });
+    return aoa;
+  }
+
+  function downloadBlob(blob, filename){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function exportCSV(){
+    const aoa = rowsToAOA();
+    const csv = aoa.map(line =>
+      line.map(cell => {
+        const s = String(cell ?? '');
+        return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join(';')
+    ).join('\r\n');
+    const blob = new Blob(['\ufeff' + csv], {type: 'text/csv;charset=utf-8;'});
+    downloadBlob(blob, 'ladetracker.csv');
+  }
+
+  function exportXLSX(){
+    const aoa = rowsToAOA();
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = [{wch:12},{wch:9},{wch:14},{wch:11},{wch:11},{wch:14}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Ladestand');
+    XLSX.writeFile(wb, 'ladetracker.xlsx');
+  }
+
+  document.getElementById('btn-export-csv').addEventListener('click', exportCSV);
+  document.getElementById('btn-export-xlsx').addEventListener('click', exportXLSX);
+
+  // ---------- Import ----------
+  const fileInput = document.getElementById('file-import');
+  let importMode = null; // 'csv' oder 'xlsx'
+
+  document.getElementById('btn-import-csv').addEventListener('click', () => {
+    importMode = 'csv';
+    fileInput.accept = '.csv';
+    fileInput.click();
+  });
+  document.getElementById('btn-import-xlsx').addEventListener('click', () => {
+    importMode = 'xlsx';
+    fileInput.accept = '.xlsx,.xls';
+    fileInput.click();
+  });
+
+  function normalizeHeader(h){
+    return String(h || '').trim().toLowerCase();
+  }
+
+  function aoaToRows(aoa){
+    if(!aoa.length) return [];
+    const header = aoa[0].map(normalizeHeader);
+    const idx = {
+      datum: header.findIndex(h => h.startsWith('datum')),
+      uhrzeit: header.findIndex(h => h.startsWith('uhrzeit')),
+      temp: header.findIndex(h => h.startsWith('außentemp') || h.startsWith('aussentemp')),
+      ladestand: header.findIndex(h => h.startsWith('ladestand')),
+      reichweite: header.findIndex(h => h.startsWith('reichweite')),
+    };
+    const out = [];
+    for(let i = 1; i < aoa.length; i++){
+      const line = aoa[i];
+      if(!line || line.every(c => c === '' || c == null)) continue;
+      out.push({
+        id: nextId++,
+        datum: idx.datum >= 0 ? String(line[idx.datum] ?? '') : todayStr(),
+        uhrzeit: idx.uhrzeit >= 0 ? String(line[idx.uhrzeit] ?? '') : nowTimeStr(),
+        temp: idx.temp >= 0 ? String(line[idx.temp] ?? '') : '',
+        ladestand: idx.ladestand >= 0 ? String(line[idx.ladestand] ?? '') : '',
+        reichweite: idx.reichweite >= 0 ? String(line[idx.reichweite] ?? '') : ''
+      });
+    }
+    return out;
+  }
+
+  function parseCSVText(text){
+    const lines = text.replace(/^\ufeff/, '').split(/\r\n|\n|\r/).filter(l => l.length > 0);
+    const sep = lines[0] && lines[0].includes(';') ? ';' : ',';
+    return lines.map(line => {
+      const cells = [];
+      let cur = '', inQuotes = false;
+      for(let i = 0; i < line.length; i++){
+        const c = line[i];
+        if(inQuotes){
+          if(c === '"' && line[i+1] === '"'){ cur += '"'; i++; }
+          else if(c === '"'){ inQuotes = false; }
+          else { cur += c; }
+        } else {
+          if(c === '"'){ inQuotes = true; }
+          else if(c === sep){ cells.push(cur); cur = ''; }
+          else { cur += c; }
+        }
+      }
+      cells.push(cur);
+      return cells;
+    });
+  }
+
+  function finishImport(importedRows){
+    if(importedRows.length === 0){
+      alert('Keine verwertbaren Zeilen in der Datei gefunden.');
+      return;
+    }
+    const append = rows.length > 0
+      ? confirm(importedRows.length + ' Zeile(n) gefunden.\n\nOK = zu bestehenden Einträgen hinzufügen\nAbbrechen = bestehende Einträge ersetzen')
+      : true;
+    rows = append ? rows.concat(importedRows) : importedRows;
+    saveRows(rows);
+    render();
+  }
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+
+    if(importMode === 'csv'){
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try{
+          const aoa = parseCSVText(ev.target.result);
+          finishImport(aoaToRows(aoa));
+        }catch(err){
+          console.error('Ladetracker: CSV-Import fehlgeschlagen', err);
+          alert('Die CSV-Datei konnte nicht gelesen werden.');
+        }
+      };
+      reader.readAsText(file, 'UTF-8');
+    } else {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try{
+          const data = new Uint8Array(ev.target.result);
+          const wb = XLSX.read(data, {type:'array'});
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const aoa = XLSX.utils.sheet_to_json(ws, {header:1, raw:false, defval:''});
+          finishImport(aoaToRows(aoa));
+        }catch(err){
+          console.error('Ladetracker: Excel-Import fehlgeschlagen', err);
+          alert('Die Excel-Datei konnte nicht gelesen werden.');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+    fileInput.value = '';
+  });
+
+  // Beispiel-Zeilen beim allerersten Start anlegen, falls noch nichts gespeichert ist
+  if(rows.length === 0 && localStorage.getItem(STORAGE_KEY) === null){
+    rows = [
+      { id: nextId++, datum: todayStr(), uhrzeit: '14:10', ladestand: '65', reichweite: '335', temp: '23' },
+      { id: nextId++, datum: todayStr(), uhrzeit: '15:56', ladestand: '65', reichweite: '293', temp: '36,5' }
+    ];
+    saveRows(rows);
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
